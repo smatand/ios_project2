@@ -1,6 +1,7 @@
 #ifndef IOS_PROJECT2_PROJ2_H
 #define IOS_PROJECT2_PROJ2_H
 
+#include <stdio.h>
 #include <semaphore.h>
 
 /**
@@ -26,6 +27,13 @@ struct semaphores {
 };
 typedef struct semaphores semaphores_t;
 
+struct shared_variables {
+	int count_action;
+	int count_oxygen;
+	int count_hydrogen;
+};
+typedef struct shared_variables shared_variables_t;
+
 /**
  * @brief Parse the parameters
  * @param params structure to fill
@@ -49,5 +57,22 @@ int init_sems(semaphores_t * sems);
  * @param sems struct to destruct
  */
 void destroy_sems(semaphores_t * sems);
+
+/**
+ * @brief Print a message to the file
+ * 
+ * @param fp file to print to
+ * @param msg message to print
+ * @param ... parameters of print
+ */
+void fprint_act(FILE * fp, const char *msg, ...);
+
+/**
+ * @brief Cleanup the shared memory
+ * 
+ * @param shm shared memory to destroy
+ * @param sems semaphores to destroy
+ */
+void clean_shm(shared_variables_t * shm, semaphores_t * sems);
 
 #endif //IOS_PROJECT2_PROJ2_H
