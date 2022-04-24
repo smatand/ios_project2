@@ -7,6 +7,32 @@
 #define MAX_TI 1000
 #define MAX_TB 1000
 
+int initSems(semaphores_t * sems) {
+	sems->mutex = sem_open("xsmata03_mutex", O_CREAT, 0644, 1);
+	sems->hydrogen = sem_open("xsmata03_hydrogen", O_CREAT, 0644, 0);
+	sems->oxygen = sem_open("xsmata03_oxygen", O_CREAT, 0644, 0);
+	sems->barrier = sem_open("xsmata03_barrier", O_CREAT, 0644, 3);
+
+	if (sems->mutex == SEM_FAILED || sems->hydrogen == SEM_FAILED || 
+			sems->oxygen == SEM_FAILED || sems->barrier == SEM_FAILED) {
+		return 1;
+	}
+
+	return 0;
+}
+
+void destroySems(semaphores_t * sems) {
+	sem_close(sems->mutex);
+	sem_close(sems->hydrogen);
+	sem_close(sems->oxygen);
+	sem_close(sems->hydrogen);
+
+	sem_unlink("xsmata03_mutex");
+	sem_unlink("xsmata03_hydrogen");
+	sem_unlink("xsmata03_oxygen");
+	sem_unlink("xsmata03_barrier");
+}
+
 int parse_p(int argc, char ** argv, params_t * pars) {
 	if (argc != 5) {
 		fprintf(stderr, "Usage: ./proj2 NO NH TI TB.\n");
@@ -43,8 +69,6 @@ int main(int argc, char ** argv) {
 	if (parse_p(argc, argv, &pars)) {
 		return 1;
 	}
-
-	printf("%d, %d, %d, %d\n", pars.n_oxygens, pars.n_hydrogens, pars.t_i, pars.t_b);
 
 	return 0;
 }
