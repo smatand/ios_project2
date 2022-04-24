@@ -1,8 +1,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h> 	// va_list, va_start, va_end
+#include <unistd.h>		// fork(), usleep()
 #include <fcntl.h>		// O_CREAT
 #include <sys/mman.h> 	// shared memory
+#include <sys/types.h>	// wait()
+#include <sys/wait.h>	// wait()
+#include <time.h>		// srand()
 
 #include "proj2.h"		// <stdio.h>, <semaphores.h>
 
@@ -122,6 +126,8 @@ int main(int argc, char ** argv) {
 	vars->count_hydrogen = 0;
 	/************************************/
 
+	srand(time(NULL) * getpid());
+
 	//////////////////////// MAIN PART ///////////////////////////////
 	PRINT_SEMAPHORE_VALUE(sems->mutex);
 	PRINT_SEMAPHORE_VALUE(sems->hydrogen);
@@ -130,6 +136,59 @@ int main(int argc, char ** argv) {
 	PRINT_SHARED_VAR(vars->count_action);
 	PRINT_SHARED_VAR(vars->count_oxygen);
 	PRINT_SHARED_VAR(vars->count_hydrogen);
+
+	for (int i = 0; i < pars.n_oxygens; i++) {
+		pid_t pid_o = fork();
+
+		// child process
+		if (pid_o == 0) {
+			sem_wait(sems->mutex);
+			vars->count_oxygen++;
+			fprint_act(fp, "%d: O %d: started\n", vars->count_action++, i+1);
+			sem_post(sems->mutex);
+
+			usleep((rand() % pars.t_i) * 1000);
+
+			sem_wait(sems->mutex);
+			fprint_act(fp, "%d: O %d: going to queue\n", vars->count_action++, i+1);
+			sem_post(sems->mutex);
+
+			exit(0);
+		}
+		// error
+		else if (pid_o == -1) {
+			ret_value = 1;
+			fprintf(stderr, "Error creating oxygen process");
+			goto cleanup_sems;
+		}
+	}	
+	
+	for (int i = 0; i < pars.n_hydrogens; i++) {
+		pid_t pid_h = fork();
+
+		// child process
+		if (pid_h == 0) {
+			sem_wait(sems->mutex);
+			vars->count_oxygen++;
+			fprint_act(fp, "%d: H %d: started\n", vars->count_action++, i+1);
+			sem_post(sems->mutex);
+
+			usleep((rand() % pars.t_i) * 1000);
+
+			sem_wait(sems->mutex);
+			fprint_act(fp, "%d: H %d: going to queue\n", vars->count_action++, i+1);
+			sem_post(sems->mutex);
+
+			exit(0);
+		}
+		// error
+		else if (pid_h == -1) {
+			ret_value = 1;
+			fprintf(stderr, "Error creating oxygen process");
+			goto cleanup_sems;
+		}
+	}
+
 	//////////////////////////////////////////////////////////////////
 
 cleanup_sems:
