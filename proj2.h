@@ -22,7 +22,9 @@ struct semaphores {
 	sem_t * oxygen;
 	// for signaling hydrogen to create a molecule
 	sem_t * hydrogen;
-	// for signaling oxygen to release a molecule
+	// signal, that creating molecule has ended
+	sem_t * hydrogen_create;
+	// signal to start with creating molecule (one at a time)
 	sem_t * barrier;
 };
 typedef struct semaphores semaphores_t;
@@ -31,6 +33,8 @@ struct shared_variables {
 	int count_action;
 	int count_oxygen;
 	int count_hydrogen;
+	int count_hydrogen_max; // 2
+	int count_molecule;
 };
 typedef struct shared_variables shared_variables_t;
 

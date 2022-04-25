@@ -19,10 +19,11 @@
 int init_sems(semaphores_t * sems) {
 	sems->mutex = sem_open("xsmata03_mutex", O_CREAT, 0644, 1);
 	sems->hydrogen = sem_open("xsmata03_hydrogen", O_CREAT, 0644, 0);
+	sems->hydrogen_create = sem_open("xsmata03_hydrogen_create", O_CREAT, 0644, 0);
 	sems->oxygen = sem_open("xsmata03_oxygen", O_CREAT, 0644, 0);
-	sems->barrier = sem_open("xsmata03_barrier", O_CREAT, 0644, 3);
+	sems->barrier = sem_open("xsmata03_barrier", O_CREAT, 0644, 1);
 
-	if (sems->mutex == SEM_FAILED || sems->hydrogen == SEM_FAILED || 
+	if (sems->mutex == SEM_FAILED || sems->hydrogen == SEM_FAILED || sems->hydrogen_create == SEM_FAILED ||
 			sems->oxygen == SEM_FAILED || sems->barrier == SEM_FAILED) {
 		return 1;
 	}
@@ -33,11 +34,13 @@ int init_sems(semaphores_t * sems) {
 void destroy_sems(semaphores_t * sems) {
 	sem_close(sems->mutex);
 	sem_close(sems->hydrogen);
+	sem_close(sems->hydrogen_create);
 	sem_close(sems->oxygen);
 	sem_close(sems->hydrogen);
 
 	sem_unlink("xsmata03_mutex");
 	sem_unlink("xsmata03_hydrogen");
+	sem_unlink("xsmata03_hydrogen_create");
 	sem_unlink("xsmata03_oxygen");
 	sem_unlink("xsmata03_barrier");
 }
@@ -122,20 +125,15 @@ int main(int argc, char ** argv) {
 	}
 
 	vars->count_action = 1;
-	vars->count_oxygen = 0;
-	vars->count_hydrogen = 0;
+	vars->count_oxygen = pars.n_oxygens;
+	vars->count_hydrogen = pars.n_hydrogens;
+	vars->count_hydrogen_max = 0;
+	vars->count_molecule = 1;
 	/************************************/
 
 	srand(time(NULL) * getpid());
 
 	//////////////////////// MAIN PART ///////////////////////////////
-	PRINT_SEMAPHORE_VALUE(sems->mutex);
-	PRINT_SEMAPHORE_VALUE(sems->hydrogen);
-	PRINT_SEMAPHORE_VALUE(sems->oxygen);
-	PRINT_SEMAPHORE_VALUE(sems->barrier);
-	PRINT_SHARED_VAR(vars->count_action);
-	PRINT_SHARED_VAR(vars->count_oxygen);
-	PRINT_SHARED_VAR(vars->count_hydrogen);
 
 	for (int i = 0; i < pars.n_oxygens; i++) {
 		pid_t pid_o = fork();
@@ -143,7 +141,6 @@ int main(int argc, char ** argv) {
 		// child process
 		if (pid_o == 0) {
 			sem_wait(sems->mutex);
-			vars->count_oxygen++;
 			fprint_act(fp, "%d: O %d: started\n", vars->count_action++, i+1);
 			sem_post(sems->mutex);
 
@@ -153,7 +150,41 @@ int main(int argc, char ** argv) {
 			fprint_act(fp, "%d: O %d: going to queue\n", vars->count_action++, i+1);
 			sem_post(sems->mutex);
 
-			exit(0);
+			sem_wait(sems->barrier); // starting process of creating 1 molecule
+
+			if (vars->count_hydrogen >= 2) {
+				sem_post(sems->hydrogen); // free 1 H
+				sem_post(sems->hydrogen); // free 1 H
+
+				sem_wait(sems->mutex);
+				fprint_act(fp, "%d: O %d: creating molecule %d\n", vars->count_action++, i+1, vars->count_molecule);
+				sem_post(sems->mutex);
+
+				sem_wait(sems->oxygen);
+
+				// simulation of molecule creation
+				usleep((rand() % pars.t_b) * 1000);
+
+				// signal that creating molecule is finished
+				sem_post(sems->hydrogen_create); 
+				sem_post(sems->hydrogen_create);
+
+				sem_wait(sems->mutex);
+				fprint_act(fp, "%d: O %d: molecule %d created\n", vars->count_action++, i+1, vars->count_molecule);
+				vars->count_oxygen--;
+				sem_post(sems->mutex);
+
+				// wait for molecule creation of 2 remaining Hs
+				sem_wait(sems->oxygen); 
+				vars->count_molecule++;
+			} else {
+				sem_wait(sems->mutex);
+				fprint_act(fp, "%d: O %d: not enough H\n", vars->count_action++, i+1);
+				sem_post(sems->mutex);
+			}
+			sem_post(sems->barrier);
+
+			exit(0); // exit from child process TODO: _Exit()
 		}
 		// error
 		else if (pid_o == -1) {
@@ -169,7 +200,6 @@ int main(int argc, char ** argv) {
 		// child process
 		if (pid_h == 0) {
 			sem_wait(sems->mutex);
-			vars->count_oxygen++;
 			fprint_act(fp, "%d: H %d: started\n", vars->count_action++, i+1);
 			sem_post(sems->mutex);
 
@@ -179,17 +209,49 @@ int main(int argc, char ** argv) {
 			fprint_act(fp, "%d: H %d: going to queue\n", vars->count_action++, i+1);
 			sem_post(sems->mutex);
 
-			exit(0);
+			// free 2 H
+			sem_wait(sems->hydrogen); // 1st and 2nd hydrogen waits for oxygen to free 2 H
+			if (vars->count_hydrogen + vars->count_hydrogen_max >= 2 && vars->count_oxygen >= 1) {
+				vars->count_hydrogen--;
+
+				sem_wait(sems->mutex);
+				fprint_act(fp, "%d: H %d: creating molecule %d\n", vars->count_action++, i+1, vars->count_molecule);
+				vars->count_hydrogen_max++;
+				sem_post(sems->mutex);
+
+				if (vars->count_hydrogen_max == 2) {
+					sem_post(sems->oxygen);
+				}
+
+				sem_wait(sems->hydrogen_create);
+
+				sem_wait(sems->mutex);
+				fprint_act(fp, "%d: H %d: molecule %d created\n", vars->count_action++, i+1, vars->count_molecule);
+				vars->count_hydrogen_max--;
+				sem_post(sems->mutex);
+
+
+				if (vars->count_hydrogen_max == 0) {
+					sem_post(sems->oxygen);
+				}
+			} else {
+				sem_wait(sems->mutex);
+				fprint_act(fp, "%d: H %d: not enough O or H\n", vars->count_action++, i+1);
+				sem_post(sems->mutex);
+			}
+
+			exit(0); // exit from child process TODO: _Exit()
 		}
 		// error
 		else if (pid_h == -1) {
 			ret_value = 1;
-			fprintf(stderr, "Error creating oxygen process");
+			fprintf(stderr, "Error creating hydrogen process");
 			goto cleanup_sems;
 		}
 	}
 
 	//////////////////////////////////////////////////////////////////
+	while (wait(NULL) > 0);
 
 cleanup_sems:
 	destroy_sems(sems);
