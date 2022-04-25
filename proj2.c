@@ -144,7 +144,7 @@ int main(int argc, char ** argv) {
 			fprint_act(fp, "%d: O %d: started\n", vars->count_action++, i+1);
 			sem_post(sems->mutex);
 
-			usleep((rand() % pars.t_i) * 1000);
+			usleep((rand() % (pars.t_i+1)) * 1000);
 
 			sem_wait(sems->mutex);
 			fprint_act(fp, "%d: O %d: going to queue\n", vars->count_action++, i+1);
@@ -163,7 +163,7 @@ int main(int argc, char ** argv) {
 				sem_wait(sems->oxygen);
 
 				// simulation of molecule creation
-				usleep((rand() % pars.t_b) * 1000);
+				usleep((rand() % (pars.t_b+1)) * 1000);
 
 				// signal that creating molecule is finished
 				sem_post(sems->hydrogen_create); 
@@ -203,15 +203,15 @@ int main(int argc, char ** argv) {
 			fprint_act(fp, "%d: H %d: started\n", vars->count_action++, i+1);
 			sem_post(sems->mutex);
 
-			usleep((rand() % pars.t_i) * 1000);
+			usleep((rand() % (pars.t_i+1)) * 1000);
 
 			sem_wait(sems->mutex);
 			fprint_act(fp, "%d: H %d: going to queue\n", vars->count_action++, i+1);
 			sem_post(sems->mutex);
 
 			// free 2 H
-			sem_wait(sems->hydrogen); // 1st and 2nd hydrogen waits for oxygen to free 2 H
 			if (vars->count_hydrogen + vars->count_hydrogen_max >= 2 && vars->count_oxygen >= 1) {
+				sem_wait(sems->hydrogen); // 1st and 2nd hydrogen waits for oxygen to free 2 H
 				vars->count_hydrogen--;
 
 				sem_wait(sems->mutex);
