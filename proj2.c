@@ -190,7 +190,7 @@ int main(int argc, char ** argv) {
 		else if (pid_o == -1) {
 			ret_value = 1;
 			fprintf(stderr, "Error creating oxygen process");
-			goto cleanup_sems;
+			goto cleanup_children;
 		}
 	}	
 	
@@ -246,13 +246,14 @@ int main(int argc, char ** argv) {
 		else if (pid_h == -1) {
 			ret_value = 1;
 			fprintf(stderr, "Error creating hydrogen process");
-			goto cleanup_sems;
+			goto cleanup_children;
 		}
 	}
 
 	//////////////////////////////////////////////////////////////////
-	while (wait(NULL) > 0);
 
+cleanup_children:
+	while (wait(NULL) > 0);
 cleanup_sems:
 	destroy_sems(sems);
 cleanup_shm:
