@@ -26,6 +26,8 @@ struct semaphores {
 	sem_t * hydrogen_create;
 	// signal to start with creating molecule (one at a time)
 	sem_t * barrier;
+	// signal for H to pass to the condition
+	sem_t * barrier_h;
 };
 typedef struct semaphores semaphores_t;
 
