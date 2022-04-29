@@ -16,6 +16,6 @@ run:
 	./proj2 3 5 100 100
 
 archive:
-	zip proj2.zip Makefile *.h *.c
+	zip proj2.zip Makefile proj2.c
 clean:
 	rm -f *.o *.gch proj2
