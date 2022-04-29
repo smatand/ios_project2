@@ -195,12 +195,14 @@ int main(int argc, char ** argv) {
 	if (sems == MAP_FAILED || vars == MAP_FAILED) {
 		ret_value = 1;
 		fprintf(stderr, "Error creating shared memory");
+
 		goto cleanup_shm;
 	}
 
 	if (init_sems(sems)) {
 		ret_value = 1;
 		fprintf(stderr, "Error creating semaphores");
+
 		goto cleanup_sems;
 	}
 
@@ -273,7 +275,9 @@ int main(int argc, char ** argv) {
 		else if (pid_o == -1) {
 			ret_value = 1;
 			fprintf(stderr, "Error creating oxygen process");
-			goto cleanup_children;
+			kill(pid_o, SIGTERM);
+
+			goto cleanup_sems;
 		}
 	}	
 	
@@ -332,13 +336,14 @@ int main(int argc, char ** argv) {
 		else if (pid_h == -1) {
 			ret_value = 1;
 			fprintf(stderr, "Error creating hydrogen process");
-			goto cleanup_children;
+			kill(pid_h, SIGTERM);
+
+			goto cleanup_sems;
 		}
 	}
 	//////////////////////////////////////////////////////////////////
+	while (wait(NULL) > 0); // wait for child processes to die
 
-cleanup_children:
-	while (wait(NULL) > 0);
 cleanup_sems:
 	destroy_sems(sems);
 cleanup_shm:
