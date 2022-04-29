@@ -10,9 +10,6 @@
 #include <sys/wait.h>	// wait()
 #include <time.h>		// srand()
 
-#define PRINT_SEMAPHORE_VALUE(sem) do {int temp=0; sem_getvalue(sem, &temp); fprint_act(fp, "SEMAPHORE_L%d\t%s: %d\n", __LINE__, #sem, temp);} while(0)
-#define PRINT_SHARED_VAR(var) do {fprint_act(fp, "SHARED_VAR_L%d\t%s: %d\n", __LINE__, #var, var);} while(0)
-
 #define MAX_TI 1000
 #define MAX_TB 1000
 
@@ -41,7 +38,7 @@ struct semaphores {
 	sem_t * hydrogen_create;
 	// signal to start with creating molecule (one at a time)
 	sem_t * barrier;
-	// signal for H to pass to the condition
+	// signal for H to pass to the if() else condition
 	sem_t * barrier_h;
 };
 typedef struct semaphores semaphores_t;
@@ -257,13 +254,10 @@ int main(int argc, char ** argv) {
 				fprint_act(fp, "%d: O %d: molecule %d created\n", vars->count_action++, i+1, vars->count_molecule);
 				sem_post(sems->mutex);
 
-				//vars->count_oxygen--;
-
 				// wait for molecule creation of 2 remaining Hs
 				sem_wait(sems->oxygen); 
 				sem_wait(sems->oxygen);
 
-				//vars->count_hydrogen -= 2;
 				vars->count_molecule++;
 			} else {
 				sem_wait(sems->mutex);
@@ -275,7 +269,7 @@ int main(int argc, char ** argv) {
 
 			exit(0); // exit from child process TODO: _Exit()
 		}
-		// error
+		// error forking
 		else if (pid_o == -1) {
 			ret_value = 1;
 			fprintf(stderr, "Error creating oxygen process");
@@ -300,7 +294,6 @@ int main(int argc, char ** argv) {
 
 			sem_wait(sems->barrier_h);
 			
-			// free 2 H
 			if (vars->count_hydrogen >= 2 && vars->count_oxygen >= 1) {
 				sem_wait(sems->hydrogen); // 1st and 2nd hydrogen waits for oxygen to free 2 H
 
@@ -309,6 +302,7 @@ int main(int argc, char ** argv) {
 				vars->count_hydrogen_max++;
 				sem_post(sems->mutex);
 
+				// decrement counters
 				if (vars->count_hydrogen_max == 2) {
 					vars->count_hydrogen -= 2;
 					vars->count_hydrogen_max = 0;
@@ -321,7 +315,6 @@ int main(int argc, char ** argv) {
 
 				sem_wait(sems->mutex);
 				fprint_act(fp, "%d: H %d: molecule %d created\n", vars->count_action++, i+1, vars->count_molecule);
-				//vars->count_hydrogen_max--;
 				sem_post(sems->mutex);
 
 				sem_post(sems->oxygen);
@@ -335,7 +328,7 @@ int main(int argc, char ** argv) {
 
 			exit(0); // exit from child process TODO: _Exit()
 		}
-		// error
+		// error forking
 		else if (pid_h == -1) {
 			ret_value = 1;
 			fprintf(stderr, "Error creating hydrogen process");
