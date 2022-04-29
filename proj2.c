@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <semaphore.h>	// semaphores
 #include <stdarg.h> 	// va_list, va_start, va_end
 #include <unistd.h>		// fork(), usleep()
 #include <fcntl.h>		// O_CREAT
@@ -8,14 +10,60 @@
 #include <sys/wait.h>	// wait()
 #include <time.h>		// srand()
 
-#include "proj2.h"		// <stdio.h>, <semaphores.h>
-
 #define PRINT_SEMAPHORE_VALUE(sem) do {int temp=0; sem_getvalue(sem, &temp); fprint_act(fp, "SEMAPHORE_L%d\t%s: %d\n", __LINE__, #sem, temp);} while(0)
 #define PRINT_SHARED_VAR(var) do {fprint_act(fp, "SHARED_VAR_L%d\t%s: %d\n", __LINE__, #var, var);} while(0)
 
 #define MAX_TI 1000
 #define MAX_TB 1000
 
+/**
+ * @struct Parameters
+ */
+struct params {
+	int n_oxygens;
+	int n_hydrogens;
+	int t_i; // maximum time for atom to wait [ms]
+	int t_b; // maximum time necessary for creating one molecule [ms]
+};
+typedef struct params params_t;
+
+/**
+ * @struct Semaphores
+ */
+struct semaphores {
+	// allows only one action at a time
+	sem_t * mutex;
+	// for signaling oxygen to create a molecule
+	sem_t * oxygen;
+	// for signaling hydrogen to create a molecule
+	sem_t * hydrogen;
+	// signal, that creating molecule has ended
+	sem_t * hydrogen_create;
+	// signal to start with creating molecule (one at a time)
+	sem_t * barrier;
+	// signal for H to pass to the condition
+	sem_t * barrier_h;
+};
+typedef struct semaphores semaphores_t;
+
+/**
+ * @struct Shared variables
+ */
+struct shared_variables {
+	int count_action;
+	int count_oxygen;
+	int count_hydrogen;
+	int count_hydrogen_max; // 2
+	int count_molecule;
+};
+typedef struct shared_variables shared_variables_t;
+
+/**
+ * @brief Initialize the semaphores and return the struct
+ * 
+ * @param sems struct to fill
+ * @return 0 if successful, 1 otherwise
+ */
 int init_sems(semaphores_t * sems) {
 	sems->mutex = sem_open("xsmata03_mutex", O_CREAT, 0644, 1);
 	sems->hydrogen = sem_open("xsmata03_hydrogen", O_CREAT, 0644, 0);
@@ -32,6 +80,11 @@ int init_sems(semaphores_t * sems) {
 	return 0;
 }
 
+/**
+ * @brief Destroy the semaphores
+ * 
+ * @param sems struct to destruct
+ */
 void destroy_sems(semaphores_t * sems) {
 	sem_close(sems->mutex);
 	sem_close(sems->hydrogen);
@@ -48,6 +101,13 @@ void destroy_sems(semaphores_t * sems) {
 	sem_unlink("xsmata03_barrier_h");
 }
 
+/**
+ * @brief Print a message to the file
+ * 
+ * @param fp file to print to
+ * @param msg message to print
+ * @param ... parameters of print
+ */
 void fprint_act(FILE * fp, const char *msg, ...) {
 	va_list args;
 	va_start(args, msg);
@@ -56,11 +116,26 @@ void fprint_act(FILE * fp, const char *msg, ...) {
 	fflush(fp);
 }
 
+
+/**
+ * @brief Cleanup the shared memory
+ * 
+ * @param shm shared memory to destroy
+ * @param sems semaphores to destroy
+ */
 void clean_shm(shared_variables_t * shm, semaphores_t * sems) {
 	munmap(shm, sizeof(shared_variables_t));
 	munmap(sems, sizeof(semaphores_t));
 }
 
+
+/**
+ * @brief Parse the parameters
+ * @param params structure to fill
+ * @param argc number of arguments
+ * @param argv array of arguments
+ * @return 0 if successful, -1 otherwise
+ */
 int parse_p(int argc, char ** argv, params_t * pars) {
 	if (argc != 5) {
 		fprintf(stderr, "Usage: ./proj2 NO NH TI TB.\n");

@@ -1,12 +1,14 @@
 CC=gcc
 CFLAGS=-std=gnu99 -Wall -Wextra -Werror -pedantic
 
+.PHONY: all, run, test, archive, clean
+
 all: proj2
 
 proj2: proj2.o
 	$(CC) $(CFLAGS) $^ -o $@ -pthread -g
 
-proj2.o: proj2.h proj2.c
+proj2.o: proj2.c
 	$(CC) $(CFLAGS) -c $^
 
 run:
